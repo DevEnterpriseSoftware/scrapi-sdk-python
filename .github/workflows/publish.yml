@@ -1,9 +1,16 @@
 name: Publish
 
 on:
-  push:
-    branches: [master]
   workflow_dispatch:
+    inputs:
+      publish_testpypi:
+        description: "Publish to TestPyPI"
+        type: boolean
+        default: true
+      publish_pypi:
+        description: "Publish to PyPI"
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -11,6 +18,7 @@ jobs:
     permissions:
       contents: write
     env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       ACT: ""
 
     steps:
@@ -96,6 +104,7 @@ jobs:
 
   publish-testpypi:
     needs: build
+    if: ${{ inputs.publish_testpypi }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -116,7 +125,8 @@ jobs:
           skip-existing: true
 
   publish-pypi:
-    needs: publish-testpypi
+    needs: build
+    if: ${{ inputs.publish_pypi }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
