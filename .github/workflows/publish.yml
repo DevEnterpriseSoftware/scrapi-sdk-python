@@ -24,7 +24,6 @@ jobs:
     outputs:
       new_version: ${{ steps.bump_version.outputs.new_version }}
     env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       ACT: ""
 
     steps:
@@ -87,7 +86,8 @@ jobs:
             exit 0
           fi
           git commit -m "chore(release): bump version to ${{ steps.bump_version.outputs.new_version }}"
-          git push origin HEAD:${{ github.ref_name }}
+          git tag "v${{ steps.bump_version.outputs.new_version }}"
+          git push --follow-tags
 
       - name: Install build tools
         run: |
@@ -158,10 +158,8 @@ jobs:
 
     steps:
       - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "v${{ needs.build.outputs.new_version }}" \
-            --repo "${{ github.repository }}" \
-            --title "v${{ needs.build.outputs.new_version }}" \
-            --generate-notes
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build.outputs.new_version }}
+          name: v${{ needs.build.outputs.new_version }}
+          generate_release_notes: true
