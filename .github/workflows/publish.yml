@@ -1,0 +1,136 @@
+name: Publish
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      ACT: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Bump package version
+        id: bump_version
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import re
+
+          pyproject = pathlib.Path("pyproject.toml")
+          version_py = pathlib.Path("src/scrapi_sdk/version.py")
+
+          pyproject_text = pyproject.read_text(encoding="utf-8")
+          match = re.search(r'^version\s*=\s*"(\d+)\.(\d+)\.(\d+)"\s*$', pyproject_text, re.MULTILINE)
+          if not match:
+              raise SystemExit("Could not find [project] version in pyproject.toml")
+
+          major, minor, patch = map(int, match.groups())
+          new_version = f"{major}.{minor}.{patch + 1}"
+
+          pyproject_text = (
+              pyproject_text[: match.start()] + f'version = "{new_version}"' + pyproject_text[match.end() :]
+          )
+          pyproject.write_text(pyproject_text, encoding="utf-8")
+
+          version_py_text = version_py.read_text(encoding="utf-8")
+          version_py_text, replaced = re.subn(
+              r'__version__\s*=\s*"[^"]+"',
+              f'__version__ = "{new_version}"',
+              version_py_text,
+              count=1,
+          )
+          if replaced != 1:
+              raise SystemExit("Could not update __version__ in src/scrapi_sdk/version.py")
+
+          version_py.write_text(version_py_text, encoding="utf-8")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"new_version={new_version}\n")
+          PY
+
+      - name: Commit version bump
+        if: "!env.ACT"
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml src/scrapi_sdk/version.py
+          if git diff --cached --quiet; then
+            echo "No version bump changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(release): bump version to ${{ steps.bump_version.outputs.new_version }}"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build distributions
+        run: |
+          rm -rf dist/
+          python -m build
+
+      - name: Check distributions
+        run: python -m twine check dist/*
+
+      - name: Upload dist to artifact
+        if: "!env.ACT"
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-testpypi:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/scrapi-sdk
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to TestPyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  publish-pypi:
+    needs: publish-testpypi
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/p/scrapi-sdk
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
