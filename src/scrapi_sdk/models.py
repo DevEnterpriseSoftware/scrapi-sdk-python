@@ -37,6 +37,71 @@ def normalize_url(value: str) -> str:
 
 @dataclass(slots=True)
 class ScrapeRequest:
+    """A web scrape request.
+
+    Attributes:
+        url: The URL to scrape for content. Must be an absolute URL. If a
+            scheme is omitted, ``https://`` is prepended automatically.
+        response_format: The response format from the API call. Defaults to
+            :attr:`~scrapi_sdk.enums.ResponseFormat.JSON`. Only JSON is
+            supported by the client.
+        response_selector: A CSS or XPath selector used to filter the response
+            content to a specific element. Defaults to ``None``.
+        cookies: Key/value pairs of cookies to include in the scrape request.
+            Defaults to an empty dictionary.
+        headers: Key/value pairs of headers to include in the scrape request.
+            ScrAPI will generate certain headers automatically (such as a
+            random User-Agent). Headers provided here override those defaults.
+            Defaults to an empty dictionary.
+        request_method: The HTTP request method to use when requesting the
+            target URL. Cannot be used when ``use_browser`` is ``True``.
+            Defaults to ``"GET"``.
+        request_body_base64: Base64-encoded binary data to send to the target
+            website. Requires the ``Content-Type`` header to be set. Cannot
+            be used when ``use_browser`` is ``True``. Defaults to ``None``.
+        proxy_type: The type of proxy to use for the scrape request. Defaults
+            to :attr:`~scrapi_sdk.enums.ProxyType.NONE`.
+        proxy_country: The three-letter country code (e.g. ``"USA"``, ``"GBR"``,
+            ``"ZAF"``) for geolocation. Use
+            :meth:`~scrapi_sdk.client.ScrapiClient.get_supported_countries`
+            to retrieve valid codes. Defaults to ``None``.
+        proxy_city: The city name for geolocation. Requires ``proxy_country``
+            to also be set. Use
+            :meth:`~scrapi_sdk.client.ScrapiClient.get_supported_cities`
+            to retrieve valid city names. Defaults to ``None``.
+        custom_proxy_url: A custom proxy URL in the format
+            ``protocol://username:password@host:port``. Username and password
+            are optional for unauthenticated proxies. Defaults to ``None``.
+        use_browser: Whether to use a full headless browser (executes
+            JavaScript) rather than a plain HTTP client call (faster, no
+            JavaScript). Defaults to ``False``.
+        solve_captchas: Whether to automatically detect, solve, and submit
+            captchas. Requires ``use_browser`` to be ``True``. Defaults to
+            ``False``.
+        include_screenshot: Whether to capture a screenshot of the page and
+            include a link in the response. Requires ``use_browser`` to be
+            ``True``. Defaults to ``False``.
+        include_pdf: Whether to generate a PDF of the page and include a link
+            in the response. Requires ``use_browser`` to be ``True``. Defaults
+            to ``False``.
+        include_video: Whether to record a video of the page and browser
+            commands and include a link in the response. Requires
+            ``use_browser`` to be ``True``. Defaults to ``False``.
+        accept_dialogs: Whether to accept rather than cancel popup dialogs
+            when using browser commands. By default all popups are cancelled.
+            Defaults to ``False``.
+        session_id: An optional session identifier that causes the same IP
+            address, user agent, and cookies to be reused across requests
+            sharing the same value. Useful to avoid re-solving captchas.
+            Defaults to ``None``.
+        callback_url: A URL that will receive an HTTP POST with the
+            :class:`ScrapeResponse` serialized as JSON when the scraping
+            operation completes. Defaults to ``None``.
+        browser_commands: An ordered list of browser commands to execute
+            after the page has loaded. Requires ``use_browser`` to be
+            ``True``. Defaults to an empty :class:`~scrapi_sdk.browser_commands.BrowserCommandList`.
+    """
+
     url: str
     response_format: ResponseFormat = field(default_factory=lambda: ScrapeRequestDefaults.response_format)
     response_selector: str | None = field(default_factory=lambda: ScrapeRequestDefaults.response_selector)
@@ -59,6 +124,7 @@ class ScrapeRequest:
     browser_commands: BrowserCommandList = field(default_factory=BrowserCommandList)
 
     def __post_init__(self) -> None:
+        """Normalize the URL after initialization."""
         try:
             self.url = normalize_url(self.url)
         except ValueError:
@@ -66,6 +132,12 @@ class ScrapeRequest:
             pass
 
     def to_api_dict(self) -> dict[str, Any]:
+        """Serialize this request to a dictionary suitable for the ScrAPI API.
+
+        Returns:
+            A dictionary containing all request fields mapped to their API
+            wire names.
+        """
         return {
             "url": self.url,
             "responseFormat": response_format_to_wire(self.response_format),
@@ -92,12 +164,29 @@ class ScrapeRequest:
 
 @dataclass(slots=True)
 class SupportedCountryResponse:
+    """Represents a country supported for proxy geolocation.
+
+    Attributes:
+        name: The full name of the country.
+        key: The three-letter country key used for the
+            :attr:`~scrapi_sdk.models.ScrapeRequest.proxy_country` option.
+        proxy_count: The number of proxies available in this country.
+    """
+
     name: str
     key: str
     proxy_count: int
 
     @staticmethod
     def from_api_dict(data: Mapping[str, Any]) -> SupportedCountryResponse:
+        """Deserialize a :class:`SupportedCountryResponse` from an API response dictionary.
+
+        Args:
+            data: A mapping containing the raw API response fields.
+
+        Returns:
+            A populated :class:`SupportedCountryResponse` instance.
+        """
         return SupportedCountryResponse(
             name=str(data.get("name", data.get("name", ""))),
             key=str(data.get("key", data.get("key", ""))),
@@ -107,12 +196,29 @@ class SupportedCountryResponse:
 
 @dataclass(slots=True)
 class SupportedCityResponse:
+    """Represents a city supported for proxy geolocation.
+
+    Attributes:
+        name: The full name of the city.
+        key: The city key used for the
+            :attr:`~scrapi_sdk.models.ScrapeRequest.proxy_city` option.
+        proxy_count: The number of proxies available in this city.
+    """
+
     name: str
     key: str
     proxy_count: int
 
     @staticmethod
     def from_api_dict(data: Mapping[str, Any]) -> SupportedCityResponse:
+        """Deserialize a :class:`SupportedCityResponse` from an API response dictionary.
+
+        Args:
+            data: A mapping containing the raw API response fields.
+
+        Returns:
+            A populated :class:`SupportedCityResponse` instance.
+        """
         return SupportedCityResponse(
             name=str(data.get("name", data.get("name", ""))),
             key=str(data.get("key", data.get("key", ""))),
@@ -122,15 +228,57 @@ class SupportedCityResponse:
 
 @dataclass(slots=True)
 class BalanceResponse:
+    """Represents your ScrAPI credit balance.
+
+    Attributes:
+        credits: The number of credits available for the API key.
+    """
+
     credits: int
 
     @staticmethod
     def from_api_dict(data: Mapping[str, Any]) -> BalanceResponse:
+        """Deserialize a :class:`BalanceResponse` from an API response dictionary.
+
+        Args:
+            data: A mapping containing the raw API response fields.
+
+        Returns:
+            A populated :class:`BalanceResponse` instance.
+        """
         return BalanceResponse(credits=int(data.get("credits", data.get("credits", 0)) or 0))
 
 
 @dataclass(slots=True)
 class ScrapeResponse:
+    """A web scrape response.
+
+    Attributes:
+        request_url: The URL that was requested.
+        response_url: The final URL the scraped content was served from, which
+            may differ from ``request_url`` if a redirect occurred.
+        duration: The total duration of the scrape operation.
+        attempts: The number of attempts (including retries) made before a
+            response was obtained.
+        captchas_solved: A mapping of captcha type to the number of times that
+            type was solved successfully during the request.
+        credits_used: The number of credits consumed for this scrape operation.
+        error_messages: Any error messages reported as a result of failing to
+            scrape the content, or ``None`` if the operation succeeded.
+        status_code: The final HTTP status code of the scrape operation.
+        cookies: Key/value pairs of cookies returned in the response. These
+            can be reused in subsequent requests to mimic a session.
+        headers: Key/value pairs of headers returned in the response.
+        content: The HTML or JSON content of the URL that was scraped.
+        screenshot_url: A URL to the screenshot image file, if
+            :attr:`~scrapi_sdk.models.ScrapeRequest.include_screenshot` was
+            requested.
+        pdf_url: A URL to the PDF file, if
+            :attr:`~scrapi_sdk.models.ScrapeRequest.include_pdf` was requested.
+        video_url: A URL to the video recording file, if
+            :attr:`~scrapi_sdk.models.ScrapeRequest.include_video` was requested.
+    """
+
     request_url: str
     response_url: str | None = None
     duration: str | int | float | None = None
@@ -157,6 +305,15 @@ class ScrapeResponse:
 
     @property
     def content_hash(self) -> str:
+        """A SHA-1 hex digest of the content, useful for detecting page changes.
+
+        The hash is computed over the UTF-16 LE encoded bytes of
+        :attr:`content`, matching the algorithm used by the C# SDK.
+
+        Returns:
+            An uppercase hex string, or an empty string if
+            :attr:`content` is empty.
+        """
         if not self.content:
             return ""
 
@@ -165,6 +322,20 @@ class ScrapeResponse:
 
     @property
     def html(self) -> Any:
+        """The parsed HTML document, usable for querying content with BeautifulSoup.
+
+        Parses :attr:`content` on first access and caches the result. The cache
+        is invalidated automatically when :attr:`content` changes.
+
+        Returns:
+            A :class:`bs4.BeautifulSoup` object, or ``None`` if
+            :attr:`content` is empty.
+
+        Raises:
+            ImportError: If the optional ``beautifulsoup4`` dependency is not
+                installed. Install it with
+                ``pip install scrapi-sdk[html]``.
+        """
         if not self.content:
             return None
 
@@ -184,6 +355,14 @@ class ScrapeResponse:
 
     @staticmethod
     def from_api_dict(data: Mapping[str, Any]) -> ScrapeResponse:
+        """Deserialize a :class:`ScrapeResponse` from an API response dictionary.
+
+        Args:
+            data: A mapping containing the raw API response fields.
+
+        Returns:
+            A populated :class:`ScrapeResponse` instance.
+        """
         response = ScrapeResponse(
             request_url=str(data.get("requestUrl", data.get("request_url", ""))),
             response_url=data.get("responseUrl", data.get("response_url")),

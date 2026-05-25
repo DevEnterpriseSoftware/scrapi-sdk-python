@@ -4,17 +4,47 @@ from enum import IntEnum
 
 
 class ProxyType(IntEnum):
+    """Proxy type options to use when requesting a scrape operation."""
+
+    #: No proxy will be used (default). Fastest option but can be blocked by
+    #: sites that throttle traffic.
     NONE = 0
+
+    #: A rotating public/free proxy will be used. Uses free anonymous proxies
+    #: from the internet; generally slow and unreliable. Not recommended for
+    #: production workloads.
     FREE = 1
+
+    #: A rotating residential proxy will be used. Slower but more reliable for
+    #: sites that actively try to block scraping activity.
     RESIDENTIAL = 2
+
+    #: A rotating data center proxy will be used. Faster but can be less
+    #: reliable on sites that try to block scraping activity.
     DATACENTER = 3
+
+    #: A Tor proxy will be used. Ideal for scraping Onion websites.
     TOR = 4
+
+    #: A custom proxy will be used. Configure the URL via
+    #: :attr:`~scrapi_sdk.models.ScrapeRequest.custom_proxy_url`.
     CUSTOM = 5
 
 
 class ResponseFormat(IntEnum):
+    """Response format options for a scrape operation."""
+
+    #: Standard JSON response representing a
+    #: :class:`~scrapi_sdk.models.ScrapeResponse` object.
+    #: Content type: ``application/json``.
     JSON = 0
+
+    #: HTML response; other information is returned as headers.
+    #: Content type: ``text/html``.
     HTML = 1
+
+    #: Markdown response; other information is returned as headers.
+    #: Content type: ``text/markdown``.
     MARKDOWN = 2
 
 
