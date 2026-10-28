@@ -32,22 +32,36 @@ def numbers_only(text: str | None, include_decimal_points: bool = False, trim: b
 def html_with_no_script(html: str | None) -> str:
     """Remove all ``<script>`` elements from an HTML string.
 
+    The markup is parsed with BeautifulSoup rather than filtered with a
+    regular expression, so end tags with unusual whitespace (for example
+    ``</script >``) and nested or malformed markup are handled correctly.
+
     Args:
         html: The HTML string to process.
 
     Returns:
         The HTML string with all ``<script>`` blocks removed, or an empty
         string if ``html`` is ``None`` or empty.
+
+    Raises:
+        ImportError: If the optional ``beautifulsoup4`` dependency is not
+            installed. Install it with ``pip install scrapi-sdk[html]``.
     """
     if not html:
         return ""
 
-    return re.sub(
-        r"<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>",
-        "",
-        html,
-        flags=re.IGNORECASE,
-    )
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError as exc:
+        raise ImportError(
+            "Install the optional html dependencies first: pip install scrapi-sdk[html]"
+        ) from exc
+
+    soup = BeautifulSoup(html, "html.parser")
+    for script in soup.find_all("script"):
+        script.decompose()
+
+    return str(soup)
 
 
 def next_element(node: Any) -> Any:
